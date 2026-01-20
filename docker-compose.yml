@@ -1,0 +1,61 @@
+services:
+  embedding-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - EMBEDDING_MODEL_NAME=all-MiniLM-L6-v2
+      - EMBEDDING_BATCH_SIZE=32
+      - EMBEDDING_BATCH_TIMEOUT=0.1
+      - EMBEDDING_CACHE_ENABLED=true
+      - EMBEDDING_CACHE_MAX_SIZE=10000
+      - EMBEDDING_CACHE_TTL=3600
+      - EMBEDDING_DEVICE=cpu
+    volumes:
+      # Cache the model downloads
+      - model-cache:/home/appuser/.cache
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+        reservations:
+          memory: 1G
+
+  # Optional: GPU-enabled service
+  embedding-service-gpu:
+    build:
+      context: .
+      dockerfile: Dockerfile.gpu
+    ports:
+      - "8001:8000"
+    environment:
+      - EMBEDDING_MODEL_NAME=all-MiniLM-L6-v2
+      - EMBEDDING_BATCH_SIZE=64
+      - EMBEDDING_BATCH_TIMEOUT=0.05
+      - EMBEDDING_CACHE_ENABLED=true
+      - EMBEDDING_CACHE_MAX_SIZE=50000
+      - EMBEDDING_DEVICE=cuda
+    volumes:
+      - model-cache:/home/appuser/.cache
+    restart: unless-stopped
+    profiles:
+      - gpu
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+volumes:
+  model-cache:
